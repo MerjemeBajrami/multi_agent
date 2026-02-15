@@ -9,9 +9,6 @@ from typing import Optional, Any
 
 import streamlit as st
 from dotenv import load_dotenv
-
-from schemas import state
-from schemas import state
 from tools.retriever import build_or_update_index
 from agents.graph import run_task
 from schemas.state import AppState

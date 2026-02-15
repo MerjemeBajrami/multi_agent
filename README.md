@@ -76,9 +76,13 @@ Planner → Researcher → Writer → Verifier
 │
 ├── tools/
 │   └── retriever.py
+|
+|-- app/
+│   └── streamlit_app.py
 │
-├── streamlit_app.py
-├── test_cases.json
+|-- eval/
+│   └── test_cases.json
+|
 └── README.md
 ```
 
@@ -119,7 +123,7 @@ Features:
 ### 1️⃣ Clone the repository
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/MerjemeBajrami/multi-agent.git
 cd agentic-assistant
 ```
 
@@ -147,11 +151,9 @@ streamlit run streamlit_app.py
 ```
 
 Then:
-
-1. Upload documents  
-2. Click **Save**  
-3. Enter a task  
-4. Review grounded output + citations  
+ 
+1. Enter a task  
+2. Review grounded output + citations  
 
 ---
 
@@ -215,32 +217,8 @@ Configurable via `AppState.meta`:
 
 ---
 
-## ⚠️ Limitations
 
-- Verifier is LLM-based (non-deterministic)  
-- Retrieval is single-query (no multi-hop reasoning yet)  
-- No automatic reranking  
-- Citation granularity at chunk level  
 
----
-
-## 🔮 Future Improvements
-
-- Deterministic grounding checker  
-- Multi-query retrieval  
-- Reranking layer  
-- Stable document hashing IDs  
-- Automated test harness for evaluation  
-- Sentence-level citation enforcement  
-- Cost tracking and token budgeting  
-
----
-
-## 📜 License
-
-MIT License (or specify your own)
-
----
 
 ## 👤 Author
 

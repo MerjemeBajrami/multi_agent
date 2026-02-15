@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import List, Tuple
-
+import shutil
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
@@ -91,24 +91,29 @@ def build_or_update_index(
     collection_name: str = "agentic_assistant",
 ) -> Tuple[Chroma, int]:
     """
-    Loads docs from sample_docs_dir, splits, and upserts into Chroma persistent store.
+    Rebuilds the Chroma index from scratch every time (prevents duplicates).
     Returns (vectorstore, num_chunks_indexed).
     """
     os.makedirs(sample_docs_dir, exist_ok=True)
-    os.makedirs(persist_dir, exist_ok=True)
 
     raw_docs = _load_documents(sample_docs_dir)
     if not raw_docs:
+        os.makedirs(persist_dir, exist_ok=True)
         vs = get_vectorstore(persist_dir, collection_name)
         return vs, 0
 
+    # ✅ Wipe existing persistent index to avoid duplicate chunks
+    if os.path.isdir(persist_dir):
+        shutil.rmtree(persist_dir)
+    os.makedirs(persist_dir, exist_ok=True)
+
     split_docs = _split_documents(raw_docs)
+
+    # Create a fresh vectorstore and add docs
     vs = get_vectorstore(persist_dir, collection_name)
-
-    # Add documents (Chroma will store embeddings)
     vs.add_documents(split_docs)
-    return vs, len(split_docs)
 
+    return vs, len(split_docs)
 
 def retrieve(
     query: str,
@@ -124,7 +129,14 @@ def retrieve(
 
 # Newer LangChain retrievers are Runnables
     docs = retriever.invoke(query)
+    seen = set()
+    unique = []
+    for d in docs:
+        key = (d.metadata.get("doc_id"), d.metadata.get("location"))
+        if key not in seen:
+            seen.add(key)
+            unique.append(d)
 
 # Back-compat: ensure list[Document]
-    return list(docs)
+    return unique
 

@@ -10,6 +10,8 @@ from typing import Optional, Any
 import streamlit as st
 from dotenv import load_dotenv
 
+from schemas import state
+from schemas import state
 from tools.retriever import build_or_update_index
 from agents.graph import run_task
 from schemas.state import AppState
@@ -110,6 +112,18 @@ def read_fingerprint() -> Optional[str]:
         return v or None
     return None
 
+def dedupe_citations(citations: list) -> list:
+    seen = set()
+    out = []
+    for c in citations or []:
+        # key should be stable; snippet is optional but helps avoid collisions
+        key = (c.doc_id, c.location, c.snippet)
+        if key not in seen:
+            seen.add(key)
+            out.append(c)
+    return out
+
+
 
 def write_fingerprint(fp: str) -> None:
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
@@ -187,9 +201,10 @@ def render_latest_details_under_answer(state: AppState) -> None:
     tabs = st.tabs(["Citations", "Plan", "Trace"])
 
     with tabs[0]:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        if state.citations:
-            for i, c in enumerate(state.citations, start=1):
+        unique_cites = dedupe_citations(state.citations)
+
+        if unique_cites:
+            for i, c in enumerate(unique_cites, start=1):
                 st.markdown(
                     f"""
 <div class="cite">
@@ -205,7 +220,6 @@ def render_latest_details_under_answer(state: AppState) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[1]:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         if state.plan:
             for i, step in enumerate(state.plan, start=1):
                 st.write(f"{i}. {step}")
@@ -214,7 +228,6 @@ def render_latest_details_under_answer(state: AppState) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     with tabs[2]:
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
         if state.agent_logs:
             st.dataframe([e.model_dump() for e in state.agent_logs], use_container_width=True, height=260)
         else:
@@ -239,22 +252,13 @@ def main():
 
         st.markdown("---")
         st.markdown("### Knowledge base")
-        uploaded = st.file_uploader(
-            "Upload docs (.txt, .pdf)",
-            type=["txt", "pdf"],
-            accept_multiple_files=True,
-            help="Indexed automatically when you submit a task.",
-        )
 
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Save", use_container_width=True):
-                n = save_uploaded_files(uploaded)
-                st.session_state.kb_status = f"Saved {n} file(s)."
-        with c2:
-            if st.button("Reset", use_container_width=True):
-                clear_docs_and_index()
-                st.session_state.kb_status = "Cleared docs + index."
+        doc_count = len([p for p in SAMPLE_DOCS_DIR.rglob("*") if p.is_file()])
+        st.markdown(f"<div class='small'>Docs loaded: <b>{doc_count}</b></div>", unsafe_allow_html=True)
+
+        if st.session_state.kb_status:
+            st.info(st.session_state.kb_status)
+
 
         doc_count = len([p for p in SAMPLE_DOCS_DIR.rglob("*") if p.is_file()])
         st.markdown(f"<div class='small'>Docs: <b>{doc_count}</b></div>", unsafe_allow_html=True)
@@ -267,7 +271,7 @@ def main():
         """
 <div class="hero">
   <h1>Agentic Assistant</h1>
-  <p>Grounded workflow with citations + verifier. Upload docs, then ask a task.</p>
+  <p>Grounded workflow with citations + verifier.</p>
 </div>
         """,
         unsafe_allow_html=True,
@@ -285,6 +289,7 @@ def main():
             with st.container():
                 render_latest_details_under_answer(st.session_state.last_state)
 
+
     # Bottom input
     user_task = st.chat_input("Type a task…")
 
@@ -298,6 +303,8 @@ def main():
             result = run_task(user_task=user_task, persist_dir=str(CHROMA_DIR), model=model)
             state = as_app_state(result)
 
+        
+        state.citations = dedupe_citations(state.citations)
         st.session_state.last_state = state
 
         assistant_msg = state.final_output or state.draft_output or "_No output_"
